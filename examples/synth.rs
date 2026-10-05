@@ -384,10 +384,12 @@ fn fake_jpeg(rng: &mut Rng) -> Vec<u8> {
 
 fn ascii(s: &str) -> String {
     use unicode_normalization::UnicodeNormalization;
-    s.nfd()
+    // ß has no decomposition, so it has to become "ss" before the filter
+    // drops everything that isn't ASCII.
+    s.replace('ß', "ss")
+        .nfd()
         .filter(|c| c.is_ascii())
-        .collect::<String>()
-        .replace(['ß'], "ss")
+        .collect()
 }
 
 fn email_for(rng: &mut Rng, given: &str, family: &str) -> String {
