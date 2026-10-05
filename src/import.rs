@@ -3,6 +3,8 @@
 
 use serde::Serialize;
 
+use crate::contact::Contact;
+
 /// Something in a file that couldn't be read as written. The rest of the
 /// file is still used.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -57,9 +59,74 @@ pub fn decode_charset(bytes: &[u8], charset: Option<&str>) -> String {
     enc.decode(bytes).0.into_owned()
 }
 
+/// Read one export file of any supported kind. The format is decided by
+/// content, not the file name, since people rename exports.
+pub fn read_file(name: &str, bytes: &[u8]) -> (Vec<Contact>, Vec<Issue>) {
+    let text = decode_text(bytes);
+    let head = text.trim_start();
+    if head.len() >= 11 && head[..11].eq_ignore_ascii_case("BEGIN:VCARD") {
+        return crate::vcard::read(&text, name);
+    }
+    let first_line = head.lines().next().unwrap_or("");
+    if first_line.contains(',') {
+        return crate::csv_import::read(&text, name);
+    }
+    let message = if text.trim().is_empty() {
+        "the file is empty".to_string()
+    } else {
+        "not a contacts export: expected a .vcf starting with BEGIN:VCARD, or a Google or Outlook CSV".to_string()
+    };
+    (
+        Vec::new(),
+        vec![Issue {
+            file: name.to_string(),
+            line: 0,
+            message,
+        }],
+    )
+}
+
+/// Every contact from every file, numbered in order.
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct Book {
+    pub contacts: Vec<Contact>,
+    pub issues: Vec<Issue>,
+    /// File names with how many contacts each gave.
+    pub files: Vec<(String, usize)>,
+}
+
+impl Book {
+    pub fn add(&mut self, name: &str, bytes: &[u8]) {
+        let (cs, issues) = read_file(name, bytes);
+        self.files.push((name.to_string(), cs.len()));
+        for mut c in cs {
+            c.id = self.contacts.len();
+            self.contacts.push(c);
+        }
+        self.issues.extend(issues);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn picks_format_by_content() {
+        let mut b = Book::default();
+        b.add(
+            "a.txt",
+            b"\xEF\xBB\xBF\r\nBEGIN:VCARD\r\nFN:A\r\nEND:VCARD\r\n",
+        );
+        b.add("b.vcf", b"First Name,Last Name,Mobile Phone\nBo,Ek,1\n");
+        b.add("c.vcf", b"hello");
+        b.add("d.vcf", b"");
+        assert_eq!(b.contacts.len(), 2);
+        assert_eq!(b.contacts[1].id, 1);
+        assert_eq!(b.contacts[1].name.given, "Bo");
+        assert_eq!(b.issues.len(), 2);
+        assert!(b.issues[1].message.contains("empty"));
+    }
 
     #[test]
     fn strips_utf8_bom() {
