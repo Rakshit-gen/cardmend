@@ -1,6 +1,6 @@
 //! Score cardmend against a synthetic book's truth.json.
 //!
-//!     cargo run --release --example evaluate -- DIR [--region IN] [--misses 10]
+//!     cargo run --release --example evaluate -- DIR [--region IN] [--misses 10] [--wrong 10]
 //!
 //! Pairwise: every pair of entries cardmend puts in one group, against every
 //! pair that belongs to the same person. Cluster: a group counts as right
@@ -50,6 +50,7 @@ fn main() -> anyhow::Result<()> {
     };
     let region = normalize::region(opt("--region").map_or("IN", |s| s.as_str())).unwrap();
     let show_misses: usize = opt("--misses").and_then(|s| s.parse().ok()).unwrap_or(0);
+    let show_wrong: usize = opt("--wrong").and_then(|s| s.parse().ok()).unwrap_or(0);
 
     let truth: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("truth.json"))?)?;
     let files: Vec<String> = truth["files"]
@@ -277,6 +278,31 @@ fn main() -> anyhow::Result<()> {
             )
         };
         println!("missed: {}  |  {}", show(x), show(y));
+    }
+    // Pairs grouped together that belong to different people, with the
+    // tier of their group and the evidence if the pair itself was scored.
+    let mut wrong: Vec<(usize, usize)> = found.difference(&true_pairs).copied().collect();
+    wrong.sort_unstable();
+    for &(x, y) in wrong.iter().take(show_wrong) {
+        let c = &book.contacts;
+        let tier = a.groups[group_of[x]].tier;
+        let why = a
+            .pairs
+            .iter()
+            .find(|p| (p.a.min(p.b), p.a.max(p.b)) == (x, y))
+            .map(|p| {
+                p.evidence
+                    .iter()
+                    .map(|e| e.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            })
+            .unwrap_or_else(|| "joined through another member".into());
+        println!(
+            "wrong ({tier:?}): {:?} | {:?}: {why}",
+            c[x].display_name(),
+            c[y].display_name()
+        );
     }
     Ok(())
 }
