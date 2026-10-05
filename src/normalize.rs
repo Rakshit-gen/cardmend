@@ -516,11 +516,13 @@ fn person(a: &NameKey, b: &NameKey) -> NameMatch {
         // Swapped: given on one side is the family on the other. Each side
         // may also carry its own damage (an initial, a nickname, a slip),
         // as long as one side matches outright or by a slip.
-        let cross = (
-            family_rel(&a.given, &b.family),
-            given_rel(&a.family, &b.given),
-        );
-        if matches!(cross.0, Given::Equal | Given::Typo) && cross.1 != Given::No {
+        // Checked both ways round so the answer doesn't depend on which
+        // copy comes first.
+        let swapped = |x: &NameKey, y: &NameKey| {
+            matches!(family_rel(&x.given, &y.family), Given::Equal | Given::Typo)
+                && given_rel(&x.family, &y.given) != Given::No
+        };
+        if swapped(a, b) || swapped(b, a) {
             return Swapped;
         }
         return match given_rel(&a.given, &b.given) {
@@ -541,7 +543,12 @@ fn person(a: &NameKey, b: &NameKey) -> NameMatch {
         Given::Typo if other.family.is_empty() => return Partial,
         _ => {}
     }
-    if !other.family.is_empty() && family_rel(word, &other.family) == Given::Equal {
+    // The word may be the other copy's surname, or its first name stored in
+    // the family slot ("Mike" against N:Michael;Walker).
+    if !other.family.is_empty()
+        && (family_rel(word, &other.family) == Given::Equal
+            || matches!(given_rel(word, &other.family), Given::Equal | Given::Nick))
+    {
         return Partial;
     }
     Different
@@ -673,6 +680,22 @@ mod tests {
         );
         assert_eq!(cmp("Chris Lee", "Christine Lee"), NameMatch::Nickname);
         assert_eq!(cmp("Paul Weber", "Paula Weber"), NameMatch::Different);
+    }
+
+    #[test]
+    fn order_does_not_matter() {
+        let cmp = |a: &str, b: &str| compare(&fname(a), &fname(b));
+        let pairs = [
+            ("Michael Wright", "Wright M."),
+            ("Mike", "Walker Michael"),
+            ("Priya Shah", "Shah Priya"),
+            ("Ravi", "Rani Kumar"),
+        ];
+        for (x, y) in pairs {
+            assert_eq!(cmp(x, y), cmp(y, x), "{x} / {y}");
+        }
+        assert_eq!(cmp("Michael Wright", "Wright M."), NameMatch::Swapped);
+        assert_eq!(cmp("Mike", "Walker Michael"), NameMatch::Partial);
     }
 
     #[test]
