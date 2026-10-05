@@ -258,7 +258,9 @@ fn people_behind(prep: &[Prepared], who: &[usize]) -> usize {
             }
         }
     }
-    (0..named.len()).filter(|&x| find(&mut root, x) == x).count()
+    (0..named.len())
+        .filter(|&x| find(&mut root, x) == x)
+        .count()
 }
 
 /// True when two contacts can't be the same person whatever else they

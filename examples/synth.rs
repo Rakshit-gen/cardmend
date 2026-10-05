@@ -1434,11 +1434,16 @@ fn main() -> anyhow::Result<()> {
             let mut used = vec![head.given.clone()];
             for _ in 1..size {
                 let mut q = new_person(&mut rng, persons.len(), Some(head.culture));
-                while used.contains(&q.given)
-                    || names
-                        .borrow()
-                        .contains(&(q.given.clone(), head.family.clone()))
-                {
+                // Capped: in a big book every first name may already be
+                // taken with this surname, and then a repeat is allowed.
+                for _ in 0..100 {
+                    let clash = used.contains(&q.given)
+                        || names
+                            .borrow()
+                            .contains(&(q.given.clone(), head.family.clone()));
+                    if !clash {
+                        break;
+                    }
                     q = new_person(&mut rng, persons.len(), Some(head.culture));
                 }
                 used.push(q.given.clone());
