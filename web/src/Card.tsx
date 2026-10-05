@@ -47,7 +47,16 @@ export default function Card({
       <div className="name">
         {name ?? (
           <>
-            {c.photo && <img src={c.photo} alt="" width={40} height={40} />}
+            {c.photo && (
+              // Google exports link to photos online; hide them when offline.
+              <img
+                src={c.photo}
+                alt=""
+                width={40}
+                height={40}
+                onError={(e) => (e.currentTarget.hidden = true)}
+              />
+            )}
             <h3 className="data">{c.display || "(no name)"}</h3>
           </>
         )}
