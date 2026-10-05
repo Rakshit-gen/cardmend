@@ -170,9 +170,9 @@ fn main() -> anyhow::Result<()> {
         println!("{} contacts and no duplicates found.  {took}", c.len());
     } else {
         println!(
-            "{} contacts. {} look like duplicates: {} sure, {} likely, {} to check.  {took}",
+            "{} contacts. {} like duplicates: {} sure, {} likely, {} to check.  {took}",
             c.len(),
-            plural(a.groups.len(), "group", "groups"),
+            plural(a.groups.len(), "group looks", "groups look"),
             count(Tier::Sure),
             count(Tier::Likely),
             count(Tier::Check),
