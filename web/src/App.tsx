@@ -8,7 +8,9 @@ import { type Action, type ReviewState, counts, initial, load, merges, reduce, s
 type View = "overview" | "review";
 
 // The view lives in the URL hash so a reload lands on the same screen.
-const viewFromHash = (): View => (location.hash === "#review" ? "review" : "overview");
+// "#review/12" opens group 12.
+const viewFromHash = (): View => (location.hash.startsWith("#review") ? "review" : "overview");
+const groupFromHash = () => Number(/^#review\/(\d+)$/.exec(location.hash)?.[1] ?? 0) - 1;
 
 type Store = { fp: string; groups: Ready["groups"]; s: ReviewState };
 type StoreAction = Action | { type: "load"; data: Ready };
@@ -31,7 +33,11 @@ export default function App() {
 
   const show = useCallback((a: Analysis) => {
     setData(a);
-    if (a.state === "ready") dispatch({ type: "load", data: a });
+    if (a.state === "ready") {
+      dispatch({ type: "load", data: a });
+      const g = groupFromHash();
+      if (g >= 0) dispatch({ type: "go", to: g });
+    }
   }, []);
 
   useEffect(() => {
@@ -44,6 +50,11 @@ export default function App() {
   useEffect(() => {
     if (store.fp) save(store.fp, store.s);
   }, [store]);
+
+  useEffect(() => {
+    if (view === "review" && store.fp)
+      history.replaceState(null, "", `#review/${store.s.current + 1}`);
+  }, [view, store.fp, store.s.current]);
 
   const go = (v: View) => {
     location.hash = v === "review" ? "review" : "";
