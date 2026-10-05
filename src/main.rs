@@ -200,7 +200,17 @@ fn main() -> anyhow::Result<()> {
                 .iter()
                 .map(|e| e.text.as_str())
                 .collect();
-            println!("       why: {}", why.join("; "));
+            // Name the pair when the group has more than two members.
+            let which = if g.members.len() > 2 {
+                format!(
+                    " ({} / {})",
+                    c[a.pairs[p].a].display_name(),
+                    c[a.pairs[p].b].display_name()
+                )
+            } else {
+                String::new()
+            };
+            println!("       why{which}: {}", why.join("; "));
         }
     }
     if a.groups.len() > cli.top {
