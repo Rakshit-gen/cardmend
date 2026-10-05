@@ -851,7 +851,7 @@ fn google(entries: &[Entry]) -> String {
 fn qp(s: &str) -> String {
     s.bytes()
         .map(|b| {
-            if b.is_ascii_alphanumeric() || b == b' ' || b == b'.' || b == b'@' {
+            if b.is_ascii_alphanumeric() || matches!(b, b' ' | b'.' | b'@' | b';') {
                 (b as char).to_string()
             } else {
                 format!("={b:02X}")
