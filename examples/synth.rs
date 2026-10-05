@@ -374,11 +374,13 @@ enum Style {
     Typed,
 }
 
+/// A real 16x16 JPEG of a head and shoulders, so the review page can show
+/// it, padded after its end marker to a random size: viewers ignore the
+/// padding, and different sizes exercise "keep the largest photo".
 fn fake_jpeg(rng: &mut Rng) -> Vec<u8> {
     let len = 2_000 + rng.below(18_000);
-    let mut v = vec![0xFF, 0xD8, 0xFF, 0xE0, 0, 16, b'J', b'F', b'I', b'F', 0];
+    let mut v = include_bytes!("silhouette.jpg").to_vec();
     v.extend((0..len).map(|_| rng.next() as u8));
-    v.extend([0xFF, 0xD9]);
     v
 }
 
