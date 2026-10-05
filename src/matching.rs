@@ -50,6 +50,9 @@ pub struct PhoneKey {
     pub key: String,
     pub display: String,
     pub has_country: bool,
+    /// Last nine digits as saved. A foreign number saved without its
+    /// country code gets the wrong E.164 key, but its tail still matches.
+    pub tail: String,
     /// "mobile", "home number" and so on, for explanations.
     pub kind: &'static str,
 }
@@ -97,7 +100,9 @@ pub fn prepare(c: &Contact, region: Id) -> Prepared {
         if let Some(n) = normalize::phone(&p.value, region)
             && !phones.iter().any(|x| x.key == n.key)
         {
+            let digits: String = p.value.chars().filter(|c| c.is_ascii_digit()).collect();
             phones.push(PhoneKey {
+                tail: digits[digits.len().saturating_sub(9)..].to_string(),
                 key: n.key,
                 display: n.display,
                 has_country: n.has_country,
@@ -146,6 +151,7 @@ pub fn candidates(prep: &[Prepared]) -> Vec<(usize, usize)> {
         let mut keys: HashSet<String> = HashSet::new();
         for ph in &p.phones {
             keys.insert(format!("p:{}", ph.key));
+            keys.insert(format!("t:{}", ph.tail));
         }
         for e in &p.emails {
             keys.insert(format!("e:{e}"));
@@ -293,7 +299,34 @@ pub fn score(i: usize, j: usize, a: &Prepared, b: &Prepared, shared: &HashSet<&s
             );
         }
     }
-    if common_phones.is_empty() && !a.phones.is_empty() && !b.phones.is_empty() {
+    // A number saved without a country code read with the wrong country.
+    let tail_match = a.phones.iter().find_map(|p| {
+        b.phones
+            .iter()
+            .find(|q| {
+                p.key != q.key
+                    && p.tail == q.tail
+                    && p.tail.len() == 9
+                    && (!p.has_country || !q.has_country)
+            })
+            .map(|q| if p.has_country { (q, p) } else { (p, q) })
+    });
+    if common_phones.is_empty()
+        && let Some((local, intl)) = tail_match
+    {
+        add(
+            format!(
+                "same number if {} is {} (one copy has no country code)",
+                local.display, intl.display
+            ),
+            0.45,
+        );
+    }
+    if common_phones.is_empty()
+        && tail_match.is_none()
+        && !a.phones.is_empty()
+        && !b.phones.is_empty()
+    {
         add("no number in common".into(), -0.15);
     }
 
@@ -432,6 +465,29 @@ mod tests {
             person("John Smith", &["+1 212 555 0199"], &["jsmith@b.example"]),
         ]);
         assert!(pairs(&p, &[]).is_empty());
+    }
+
+    #[test]
+    fn foreign_number_saved_without_country_code() {
+        let p = prep(&[
+            person("Abby Green", &["(617) 561-7230"], &[]),
+            person("Abigail Green", &["+1 617-561-7230"], &[]),
+            person("Unrelated", &["+1 617-561-7230"], &[]),
+        ]);
+        assert!(
+            candidates(&p).contains(&(0, 2)),
+            "tail block, not just the name block"
+        );
+        assert!(candidates(&p).contains(&(0, 1)));
+        let pair = score(0, 1, &p[0], &p[1], &HashSet::new());
+        assert!(
+            pair.evidence[1]
+                .text
+                .contains("one copy has no country code"),
+            "{:?}",
+            pair.evidence
+        );
+        assert_eq!(Tier::of(pair.score), Some(Tier::Likely));
     }
 
     #[test]
