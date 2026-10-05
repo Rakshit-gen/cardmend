@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Group } from "./api";
-import { type Action, counts, initial, keyAction, merges, reduce, type ReviewState } from "./review";
+import { type Action, counts, initial, keyAction, merges, reduce, type ReviewState } from "./decisions";
 
 const group = (tier: Group["tier"], members: number[]): Group => ({
   tier,
