@@ -1,6 +1,9 @@
 //! vCard 2.1, 3.0 and 4.0 reading.
 
-use crate::import::decode_charset;
+use base64::Engine;
+
+use crate::contact::{Address, Contact, Extra, Field, Name, Photo, Source};
+use crate::import::{Issue, decode_charset};
 
 /// One property after unfolding, with its parameters split out and its
 /// value decoded from quoted-printable (but not yet unescaped).
@@ -73,13 +76,14 @@ pub fn unfold(text: &str) -> Vec<(usize, String)> {
         }
         if let Some(last) = out.last_mut().filter(|_| open) {
             let cur = &mut last.1;
-            if line.starts_with(' ') || line.starts_with('\t') {
-                cur.push_str(&line[1..]);
-                continue;
-            }
+            // QP first: after a soft break, a leading space is part of the text.
             if cur.ends_with('=') && header_has(cur, "QUOTED-PRINTABLE") {
                 cur.pop();
                 cur.push_str(line);
+                continue;
+            }
+            if line.starts_with(' ') || line.starts_with('\t') {
+                cur.push_str(&line[1..]);
                 continue;
             }
             if !line.contains(':') && header_has(cur, "BASE64") && looks_like_base64(line) {
@@ -233,6 +237,318 @@ pub fn split_unescape(value: &str, sep: char) -> Vec<String> {
 pub fn unescape(value: &str) -> String {
     // No separator char can appear unescaped in a way we'd split on here.
     split_unescape(value, '\u{0}').concat()
+}
+
+/// Read every contact in a vCard file. Problems are reported with their
+/// line number and the rest of the file is still read.
+pub fn read(text: &str, file: &str) -> (Vec<Contact>, Vec<Issue>) {
+    let mut contacts = Vec::new();
+    let mut issues = Vec::new();
+    let issue = |line: usize, message: String| Issue {
+        file: file.to_string(),
+        line,
+        message,
+    };
+    let mut current: Option<(Contact, Vec<Prop>)> = None;
+    for (line, text) in unfold(text) {
+        let Some(prop) = parse_line(line, &text) else {
+            if current.is_some() {
+                issues.push(issue(
+                    line,
+                    format!("not a vCard property, skipped: {}", clip(&text)),
+                ));
+            }
+            continue;
+        };
+        match (prop.name.as_str(), current.is_some()) {
+            ("BEGIN", false) if prop.value.eq_ignore_ascii_case("VCARD") => {
+                let c = Contact {
+                    source: Source {
+                        file: file.to_string(),
+                        index: contacts.len(),
+                        line,
+                    },
+                    ..Contact::default()
+                };
+                current = Some((c, Vec::new()));
+            }
+            ("BEGIN", true) if prop.value.eq_ignore_ascii_case("VCARD") => {
+                let (c, props) = current.take().unwrap();
+                issues.push(issue(
+                    c.source.line,
+                    "contact has no END:VCARD before the next one starts; read what was there"
+                        .into(),
+                ));
+                contacts.push(build(c, props, &mut issues, file));
+                let c = Contact {
+                    source: Source {
+                        file: file.to_string(),
+                        index: contacts.len(),
+                        line,
+                    },
+                    ..Contact::default()
+                };
+                current = Some((c, Vec::new()));
+            }
+            ("END", true) if prop.value.eq_ignore_ascii_case("VCARD") => {
+                let (c, props) = current.take().unwrap();
+                contacts.push(build(c, props, &mut issues, file));
+            }
+            (_, true) => current.as_mut().unwrap().1.push(prop),
+            (_, false) => issues.push(issue(
+                line,
+                format!(
+                    "{} is outside any BEGIN:VCARD ... END:VCARD, skipped",
+                    prop.name
+                ),
+            )),
+        }
+    }
+    if let Some((c, props)) = current {
+        issues.push(issue(
+            c.source.line,
+            "file ends before this contact's END:VCARD; read what was there".into(),
+        ));
+        contacts.push(build(c, props, &mut issues, file));
+    }
+    (contacts, issues)
+}
+
+fn clip(s: &str) -> String {
+    match s.char_indices().nth(40) {
+        Some((i, _)) => format!("{}...", &s[..i]),
+        None => s.to_string(),
+    }
+}
+
+fn field(p: &Prop, value: String) -> Field<String> {
+    Field {
+        value,
+        types: p.types(),
+        label: None,
+    }
+}
+
+fn build(mut c: Contact, props: Vec<Prop>, issues: &mut Vec<Issue>, file: &str) -> Contact {
+    // Groups (`item1.TEL` + `item1.X-ABLabel`) tie a custom label to a
+    // value. Labels are applied once every field has been read.
+    let mut labels: Vec<(String, String)> = Vec::new();
+    let mut grouped: Vec<(String, &'static str, usize)> = Vec::new();
+    let mut note_parts: Vec<String> = Vec::new();
+    for p in props {
+        let mut slot = |kind: &'static str, len: usize| {
+            if let Some(g) = &p.group {
+                grouped.push((g.clone(), kind, len - 1));
+            }
+        };
+        match p.name.as_str() {
+            "VERSION" | "PRODID" | "REV" => {}
+            "FN" => c.formatted_name = unescape(&p.value).trim().to_string(),
+            "N" => {
+                let v = split_unescape(&p.value, ';');
+                let g = |i: usize| v.get(i).map(|s| s.trim().to_string()).unwrap_or_default();
+                c.name = Name {
+                    family: g(0),
+                    given: g(1),
+                    additional: g(2),
+                    prefix: g(3),
+                    suffix: g(4),
+                };
+            }
+            "NICKNAME" => c.nicknames.extend(
+                split_unescape(&p.value, ',')
+                    .into_iter()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty()),
+            ),
+            "ORG" => {
+                let v = split_unescape(&p.value, ';');
+                c.org = v.first().map(|s| s.trim().to_string()).unwrap_or_default();
+                c.department = v[1..]
+                    .iter()
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+            }
+            "TITLE" => c.title = unescape(&p.value).trim().to_string(),
+            "TEL" => {
+                let v = unescape(&p.value);
+                // 4.0 writes numbers as `tel:+1-...` URIs.
+                let v = v.strip_prefix("tel:").unwrap_or(&v).trim().to_string();
+                if !v.is_empty() {
+                    c.phones.push(field(&p, v));
+                    slot("TEL", c.phones.len());
+                }
+            }
+            "EMAIL" => {
+                let v = unescape(&p.value).trim().to_string();
+                if !v.is_empty() {
+                    let mut f = field(&p, v);
+                    // Every Apple and Google export says INTERNET; it tells us nothing.
+                    f.types.retain(|t| t != "internet" && t != "x400");
+                    c.emails.push(f);
+                    slot("EMAIL", c.emails.len());
+                }
+            }
+            "ADR" => {
+                let a = Address::from_parts(
+                    &split_unescape(&p.value, ';')
+                        .into_iter()
+                        .map(|s| s.trim().to_string())
+                        .collect::<Vec<_>>(),
+                );
+                if !a.is_empty() {
+                    c.addresses.push(Field {
+                        value: a,
+                        types: p.types(),
+                        label: None,
+                    });
+                    slot("ADR", c.addresses.len());
+                }
+            }
+            "URL" => {
+                let v = unescape(&p.value).trim().to_string();
+                if !v.is_empty() {
+                    c.urls.push(field(&p, v));
+                    slot("URL", c.urls.len());
+                }
+            }
+            "BDAY" => {
+                let v = p.value.trim().to_string();
+                // Apple marks a birthday with no year by putting 1604 in it.
+                let v = match (p.param("X-APPLE-OMIT-YEAR"), v.get(4..)) {
+                    (Some(y), Some(rest)) if v.starts_with(y) => format!("-{rest}"),
+                    _ => v,
+                };
+                if !v.is_empty() {
+                    c.birthday = Some(v);
+                }
+            }
+            "NOTE" => {
+                let v = unescape(&p.value).trim().to_string();
+                if !v.is_empty() {
+                    note_parts.push(v);
+                }
+            }
+            "PHOTO" => match read_photo(&p) {
+                Ok(Some(photo)) => {
+                    if c.photo.as_ref().is_none_or(|old| photo.size() > old.size()) {
+                        c.photo = Some(photo);
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => issues.push(Issue {
+                    file: file.to_string(),
+                    line: p.line,
+                    message: format!(
+                        "photo couldn't be read ({e}); the contact is kept without it"
+                    ),
+                }),
+            },
+            "CATEGORIES" => c.categories.extend(
+                split_unescape(&p.value, ',')
+                    .into_iter()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty()),
+            ),
+            "UID" => c.uid = Some(p.value.trim().to_string()),
+            "X-ABLABEL" if p.group.is_some() => {
+                labels.push((p.group.clone().unwrap(), unescape(&p.value)))
+            }
+            _ => c.extra.push(Extra {
+                group: p.group.clone(),
+                name: p.name.clone(),
+                params: p.params.clone(),
+                value: p.value.clone(),
+            }),
+        }
+    }
+    c.note = note_parts.join("\n\n");
+    for (group, label) in labels {
+        let label = clean_label(&label);
+        let target = grouped.iter().find(|(g, _, _)| *g == group);
+        match target {
+            Some((_, "TEL", i)) => c.phones[*i].label = Some(label),
+            Some((_, "EMAIL", i)) => c.emails[*i].label = Some(label),
+            Some((_, "ADR", i)) => c.addresses[*i].label = Some(label),
+            Some((_, "URL", i)) => c.urls[*i].label = Some(label),
+            // A label for something we keep as-is (X-ABDATE, X-ABRELATEDNAMES).
+            _ => c.extra.push(Extra {
+                group: Some(group),
+                name: "X-ABLABEL".into(),
+                params: Vec::new(),
+                value: label,
+            }),
+        }
+    }
+    c
+}
+
+/// Apple wraps its built-in labels as `_$!<Mobile>!$_`.
+fn clean_label(raw: &str) -> String {
+    let t = raw.trim();
+    t.strip_prefix("_$!<")
+        .and_then(|s| s.strip_suffix(">!$_"))
+        .unwrap_or(t)
+        .to_string()
+}
+
+fn read_photo(p: &Prop) -> Result<Option<Photo>, String> {
+    let value = p.value.trim();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    // 4.0: PHOTO:data:image/jpeg;base64,...
+    if let Some(rest) = value.strip_prefix("data:") {
+        let (meta, data) = rest.split_once(',').ok_or("data URL without a comma")?;
+        let mime = meta.split(';').next().unwrap_or("").to_string();
+        if !meta.contains("base64") {
+            return Err("data URL isn't base64".into());
+        }
+        let bytes = decode_b64(data)?;
+        return Ok(Some(Photo::Data {
+            mime: if mime.is_empty() { sniff(&bytes) } else { mime },
+            bytes,
+        }));
+    }
+    if p.is_base64() {
+        let bytes = decode_b64(value)?;
+        let mime = p
+            .types()
+            .iter()
+            .chain(p.param("MEDIATYPE").map(|m| m.to_ascii_lowercase()).iter())
+            .find_map(|t| match t.as_str() {
+                "jpeg" | "jpg" | "image/jpeg" => Some("image/jpeg".to_string()),
+                "png" | "image/png" => Some("image/png".to_string()),
+                "gif" | "image/gif" => Some("image/gif".to_string()),
+                _ => None,
+            })
+            .unwrap_or_else(|| sniff(&bytes));
+        return Ok(Some(Photo::Data { mime, bytes }));
+    }
+    Ok(Some(Photo::Uri(value.to_string())))
+}
+
+fn decode_b64(data: &str) -> Result<Vec<u8>, String> {
+    let clean: String = data.chars().filter(|c| !c.is_whitespace()).collect();
+    // Some exporters drop the trailing padding.
+    let e = &base64::engine::general_purpose::STANDARD;
+    e.decode(&clean)
+        .or_else(|_| {
+            base64::engine::general_purpose::STANDARD_NO_PAD.decode(clean.trim_end_matches('='))
+        })
+        .map_err(|_| "the image data isn't valid base64".to_string())
+}
+
+fn sniff(bytes: &[u8]) -> String {
+    match bytes {
+        [0xFF, 0xD8, ..] => "image/jpeg",
+        [0x89, b'P', b'N', b'G', ..] => "image/png",
+        [b'G', b'I', b'F', ..] => "image/gif",
+        _ => "image/jpeg",
+    }
+    .to_string()
 }
 
 #[cfg(test)]
