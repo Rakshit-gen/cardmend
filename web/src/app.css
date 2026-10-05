@@ -48,6 +48,7 @@ code {
 }
 code {
   font-size: 0.95em;
+  white-space: nowrap;
 }
 .muted,
 .label {
