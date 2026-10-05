@@ -113,8 +113,9 @@ fn describe(app: &App, s: &Session) -> Value {
         return json!({ "state": "empty", "region": app.region.as_ref() });
     };
     let c = &s.book.contacts;
-    // Only contacts the page can show: group members and those with a
-    // problem. The rest go straight to the output unchanged.
+    // Only contacts the page can show: group members, those with a
+    // problem, and those sharing a number or email. The rest go straight
+    // to the output unchanged.
     let mut shown: Vec<usize> = a
         .groups
         .iter()
@@ -122,6 +123,7 @@ fn describe(app: &App, s: &Session) -> Value {
         .chain(a.problems.no_name.iter().copied())
         .chain(a.problems.no_country.iter().map(|x| x.0))
         .chain(a.problems.empty.iter().copied())
+        .chain(a.shared.iter().flat_map(|x| x.contacts.iter().copied()))
         .collect();
     shown.sort_unstable();
     shown.dedup();
