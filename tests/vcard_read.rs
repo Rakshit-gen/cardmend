@@ -85,7 +85,7 @@ fn android_21_export() {
     assert_eq!(c.phones[1].types, ["home", "voice"]);
     assert_eq!(
         c.note,
-        "Line one\r\nLine two is long enough that Android breaks it"
+        "Line one\nLine two is long enough that Android breaks it"
     );
     assert_eq!(c.photo.as_ref().unwrap().size(), 160);
     assert_eq!(c.extra[0].name, "X-ANDROID-CUSTOM");
@@ -103,7 +103,7 @@ fn vcard_40() {
     let c = &cs[0];
     assert_eq!(c.phones[0].value, "+34-612-345-678");
     assert_eq!(c.phones[0].types, ["voice", "cell"]);
-    assert_eq!(c.birthday.as_deref(), Some("--0412"));
+    assert_eq!(c.birthday.as_deref(), Some("--04-12"));
     match &c.photo {
         Some(Photo::Data { mime, bytes }) => {
             assert_eq!(mime, "image/png");

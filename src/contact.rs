@@ -244,3 +244,63 @@ impl Contact {
             && self.photo.is_none()
     }
 }
+
+/// Dates in the one form cardmend writes: `YYYY-MM-DD`, or `--MM-DD` with no
+/// year. Accepts the forms exporters use (`19840307`, `--0307`, a trailing
+/// time, Outlook's `3/7/1984`). Returns None for empty and Outlook's
+/// `0/0/00` placeholder; anything else unrecognised is kept as written.
+pub fn clean_date(raw: &str) -> Option<String> {
+    let s = raw.trim();
+    let s = s.split('T').next().unwrap_or(s);
+    if s.is_empty() || s.chars().all(|c| matches!(c, '0' | '/' | '-' | '.')) {
+        return None;
+    }
+    let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+    let valid = |m: &str, d: &str| {
+        matches!(m.parse::<u32>(), Ok(1..=12)) && matches!(d.parse::<u32>(), Ok(1..=31))
+    };
+    if let Some(rest) = s.strip_prefix("--") {
+        let md: String = rest.chars().filter(|c| c.is_ascii_digit()).collect();
+        if md.len() == 4 && valid(&md[..2], &md[2..]) {
+            return Some(format!("--{}-{}", &md[..2], &md[2..]));
+        }
+    } else if s.contains('/') {
+        // Outlook writes month/day/year.
+        let p: Vec<&str> = s.split('/').collect();
+        if let [m, d, y] = p[..]
+            && y.len() == 4
+            && valid(m, d)
+        {
+            return Some(format!("{y}-{m:0>2}-{d:0>2}"));
+        }
+    } else if digits.len() == 8 && valid(&digits[4..6], &digits[6..]) {
+        return Some(format!(
+            "{}-{}-{}",
+            &digits[..4],
+            &digits[4..6],
+            &digits[6..]
+        ));
+    }
+    Some(s.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dates() {
+        assert_eq!(clean_date("1984-03-07").as_deref(), Some("1984-03-07"));
+        assert_eq!(clean_date("19840307").as_deref(), Some("1984-03-07"));
+        assert_eq!(
+            clean_date("1984-03-07T00:00:00Z").as_deref(),
+            Some("1984-03-07")
+        );
+        assert_eq!(clean_date("--0307").as_deref(), Some("--03-07"));
+        assert_eq!(clean_date("--03-07").as_deref(), Some("--03-07"));
+        assert_eq!(clean_date("3/7/1984").as_deref(), Some("1984-03-07"));
+        assert_eq!(clean_date("0/0/00"), None);
+        assert_eq!(clean_date(" "), None);
+        assert_eq!(clean_date("spring 1990").as_deref(), Some("spring 1990"));
+    }
+}

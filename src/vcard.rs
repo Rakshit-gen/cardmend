@@ -421,12 +421,10 @@ fn build(mut c: Contact, props: Vec<Prop>, issues: &mut Vec<Issue>, file: &str) 
                     (Some(y), Some(rest)) if v.starts_with(y) => format!("-{rest}"),
                     _ => v,
                 };
-                if !v.is_empty() {
-                    c.birthday = Some(v);
-                }
+                c.birthday = crate::contact::clean_date(&v);
             }
             "NOTE" => {
-                let v = unescape(&p.value).trim().to_string();
+                let v = unescape(&p.value).replace("\r\n", "\n").trim().to_string();
                 if !v.is_empty() {
                     note_parts.push(v);
                 }
