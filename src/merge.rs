@@ -133,10 +133,10 @@ fn agreement(c: &Contact, members: &[&Contact]) -> i32 {
         if !k.family.is_empty() && ok.family == k.family {
             n += 1;
         }
-        if !k.given.is_empty() && ok.given == k.given {
-            n += 1;
-        } else if !k.given.is_empty()
-            && normalize::canonical(&ok.given)[1..].contains(&k.given.as_str())
+        // The same first name, or the full form of the other's nickname.
+        if !k.given.is_empty()
+            && (ok.given == k.given
+                || normalize::canonical(&ok.given)[1..].contains(&k.given.as_str()))
         {
             n += 1;
         }
