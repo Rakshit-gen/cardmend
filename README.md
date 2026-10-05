@@ -12,7 +12,7 @@ The screenshot uses the synthetic book described below; none of the names or num
 
 ## Run it
 
-You need Rust (edition 2024, so 1.85 or newer). The web page also needs Node and pnpm.
+You need a recent stable Rust (the crate uses edition 2024; it was built with 1.98). The web page also needs Node and pnpm.
 
 ```sh
 cargo build --release
@@ -133,13 +133,13 @@ Measured on an Apple M4 (Mac16,12, 10 cores, 16 GB), macOS 26.6.2, rustc 1.98.0,
 
 ## How it works
 
-1. **Import.** Each file is detected by content. vCard handles line folding, quoted-printable, charsets and base64 photos; Google and Outlook CSV are mapped by column name, and Outlook's Windows-1252 is decoded. Every entry keeps its file and line so the report and the page can point back to it. Parse problems are reported with line numbers instead of stopping the run.
-2. **Normalise.** Phone numbers go to E.164 with the `phonenumber` crate. Emails are lowercased; dots and `+tags` are dropped only for gmail.com and googlemail.com, since other providers treat them as different addresses. Names are folded (case, accents), titles and suffixes removed, and notes like "(work)" stripped. Each entry gets a name kind: a person, a company only, a role such as "Plumber", or none.
-3. **Block.** Entries are bucketed by phone, email, folded family name and a few name keys, so only entries sharing a bucket are compared. That keeps 10k entries under a second instead of 50 million comparisons.
-4. **Score.** Each candidate pair gets evidence: how the names relate (same, written differently, swapped, an initial that fits, a nickname, a typo, different), and which numbers, emails, birthdays and companies they share. Each piece adds or removes weight, and the evidence is kept as text so every group can say why it exists.
-5. **Shared identifiers.** A number or email held by entries that look like different people (a family landline, an office switchboard, a shared family email) is marked shared and counts for very little. The report lists these so you can see why, for example, Mom and Dad were not merged. A typo in one person's name does not make their own number shared.
-6. **Group.** Pairs are joined strongest first. A join is refused if any two entries across the two sides have clearly different names or different birthdays, so one weak link cannot chain two people together. Each group gets the tier of its weakest link: sure, likely or check.
-7. **Merge.** Numbers, emails, addresses and URLs are unioned with their labels kept. The name, birthday, company, title and photo each have one pick and a list of alternatives; the default name is the best-written one most copies agree on, and the default photo is the largest. Notes are joined without repeating lines. In the page, each pick can be changed and any card can be split out before the group is merged.
+1. Import: Each file is detected by content. vCard handles line folding, quoted-printable, charsets and base64 photos; Google and Outlook CSV are mapped by column name, and Outlook's Windows-1252 is decoded. Every entry keeps its file and line so the report and the page can point back to it. Parse problems are reported with line numbers instead of stopping the run.
+2. Normalise: Phone numbers go to E.164 with the `phonenumber` crate. Emails are lowercased; dots and `+tags` are dropped only for gmail.com and googlemail.com, since other providers treat them as different addresses. Names are folded (case, accents), titles and suffixes removed, and notes like "(work)" stripped. Each entry gets a name kind: a person, a company only, a role such as "Plumber", or none.
+3. Block: Entries are bucketed by phone, email, folded family name and a few name keys, so only entries sharing a bucket are compared. That keeps 10k entries under a second instead of 50 million comparisons.
+4. Score: Each candidate pair gets evidence: how the names relate (same, written differently, swapped, an initial that fits, a nickname, a typo, different), and which numbers, emails, birthdays and companies they share. Each piece adds or removes weight, and the evidence is kept as text so every group can say why it exists.
+5. Shared identifiers: A number or email held by entries that look like different people (a family landline, an office switchboard, a shared family email) is marked shared and counts for very little. The report lists these so you can see why, for example, Mom and Dad were not merged. A typo in one person's name does not make their own number shared.
+6. Group: Pairs are joined strongest first. A join is refused if any two entries across the two sides have clearly different names or different birthdays, so one weak link cannot chain two people together. Each group gets the tier of its weakest link: sure, likely or check.
+7. Merge: Numbers, emails, addresses and URLs are unioned with their labels kept. The name, birthday, company, title and photo each have one pick and a list of alternatives; the default name is the best-written one most copies agree on, and the default photo is the largest. Notes are joined without repeating lines. In the page, each pick can be changed and any card can be split out before the group is merged.
 
 The web UI is React 19 with Vite and TypeScript, served by axum. DESIGN.md has the design notes.
 
