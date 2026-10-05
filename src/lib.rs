@@ -3,3 +3,4 @@
 pub mod contact;
 pub mod import;
 pub mod vcard;
+pub mod write;
