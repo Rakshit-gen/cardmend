@@ -462,6 +462,8 @@ const MAIL: &[&str] = &[
 struct Person {
     id: usize,
     culture: Culture,
+    /// For the honorific: nobody saves a man as "Mrs.".
+    female: bool,
     given: String,
     family: String,
     nick: Option<String>,
@@ -809,7 +811,12 @@ fn damage(
                 e.damage.push("sparse");
             }
             10 => {
-                e.prefix = rng.pick(&["Dr.", "Mr.", "Mrs.", "Ms."]).to_string();
+                let titles: &[&str] = if p.female {
+                    &["Dr.", "Mrs.", "Ms."]
+                } else {
+                    &["Dr.", "Mr."]
+                };
+                e.prefix = rng.pick(titles).to_string();
                 e.formatted = format!("{} {}", e.prefix, e.formatted);
                 e.damage.push("honorific");
             }
@@ -1381,6 +1388,7 @@ fn main() -> anyhow::Result<()> {
         Person {
             id,
             culture,
+            female,
             given,
             family,
             nick,
@@ -1491,6 +1499,12 @@ fn main() -> anyhow::Result<()> {
         let mut p = new_person(&mut rng, id, Some(Culture::Indian));
         p.given = if i == 0 { "Sunita" } else { "Ramesh" }.into();
         p.family = "Agarwal".into();
+        p.female = i == 0;
+        // The email new_person made belongs to the name it drew first.
+        if p.email.is_some() {
+            let e = email_for(&mut rng, &p.given, &p.family);
+            p.email = Some(unique_email(&mut rng, e));
+        }
         p.nick = None;
         p.landline = Some(parents_line.clone());
         p.role = Some(role);
