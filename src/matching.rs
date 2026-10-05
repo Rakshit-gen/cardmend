@@ -247,6 +247,10 @@ fn name_evidence(m: NameMatch, a: &str, b: &str) -> Option<(String, f32)> {
         NameMatch::Swapped => (format!("names {both} with first and last swapped"), 0.4),
         NameMatch::Typo => (format!("names {both} differ by a letter or two"), 0.35),
         NameMatch::Initial => (format!("names {both}: an initial that fits"), 0.3),
+        NameMatch::Similar => (
+            format!("names {both}: same first name, close last names"),
+            0.2,
+        ),
         NameMatch::Partial => (format!("names {both}: only one name to compare"), 0.15),
         NameMatch::FamilyDiffers => (
             format!("same first name but different last names: {both}"),

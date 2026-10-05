@@ -318,10 +318,11 @@ pub fn name_key(c: &crate::contact::Contact) -> NameKey {
     let (given, family) = if !n.given.trim().is_empty() || !n.family.trim().is_empty() {
         let g = clean_person(tokens(&n.given));
         let f = clean_person(tokens(&n.family));
-        // N:;Robert Smith;;; puts the whole name in one part.
-        if f.is_empty() && g.len() > 1 {
+        // N:;Robert Smith;;; puts the whole name in one part, and a lone
+        // name can end up in either slot.
+        if f.is_empty() {
             split_tokens(g)
-        } else if g.is_empty() && f.len() > 1 {
+        } else if g.is_empty() {
             split_tokens(f)
         } else {
             (g.first().cloned().unwrap_or_default(), f.join(" "))
@@ -387,6 +388,8 @@ pub enum NameMatch {
     Swapped,
     Typo,
     Initial,
+    /// First names agree and the surnames are close but not a simple slip.
+    Similar,
     /// Only one part to compare, and it agrees: "Priya" and "Priya Shah".
     Partial,
     /// Same given name, different family name: marriage, or two people.
@@ -408,16 +411,37 @@ enum Given {
 
 fn typo(a: &str, b: &str) -> bool {
     let (la, lb) = (a.chars().count(), b.chars().count());
-    if la.min(lb) < 5 || a.chars().next() != b.chars().next() {
+    if la.min(lb) < 4 || a.chars().next() != b.chars().next() {
         return false;
     }
-    // A different last letter is usually a different name, not a slip:
-    // Daniel/Daniela, Francesco/Francesca.
-    if a.chars().last() != b.chars().last() {
+    // A changed or added last letter is usually a different name, not a
+    // slip: Daniel/Daniela, Francesco/Francesca. Swapped letters are a slip
+    // wherever they are.
+    let (short, long) = if la <= lb { (a, b) } else { (b, a) };
+    let mut s_chars = short.chars();
+    s_chars.next_back();
+    let stem = s_chars.as_str();
+    if (lb == la + 1 || la == lb + 1) && long.starts_with(short) {
+        return false;
+    }
+    if la == lb && long.starts_with(stem) {
+        return false;
+    }
+    // In four-letter names one changed letter is a different name more often
+    // than a slip (Ravi/Rani); a dropped, doubled or swapped one is a slip.
+    let changed = la == lb && a.chars().zip(b.chars()).filter(|(x, y)| x != y).count() == 1;
+    if changed && la.min(lb) < 5 {
         return false;
     }
     let d = strsim::damerau_levenshtein(a, b);
     d == 1 || (d == 2 && la.min(lb) >= 8)
+}
+
+/// Close enough to be the same surname mistyped twice, or transliterated
+/// differently (Kapoor/Koaor, Agarwal/Agrawal). Only used when the first
+/// names already agree.
+fn close(a: &str, b: &str) -> bool {
+    strsim::jaro_winkler(a, b) >= 0.85
 }
 
 fn given_rel(a: &str, b: &str) -> Given {
@@ -437,7 +461,8 @@ fn given_rel(a: &str, b: &str) -> Given {
     if initial(a, &cb) || initial(b, &ca) {
         return Given::Initial;
     }
-    if typo(a, b) {
+    // A typo in a name that's also a nickname elsewhere: Vicotria / Vicky.
+    if ca.iter().any(|x| cb.iter().any(|y| typo(x, y))) {
         return Given::Typo;
     }
     Given::No
@@ -483,20 +508,27 @@ fn person(a: &NameKey, b: &NameKey) -> NameMatch {
                 (Given::Equal, Given::Nick) => Nickname,
                 (Given::Equal, Given::Initial) => Initial,
                 (Given::Equal, Given::Typo) | (Given::Typo, Given::Equal) => Typo,
-                (Given::Typo, Given::Nick) => Typo,
+                (Given::Typo, Given::Nick | Given::Typo) => Typo,
+                (Given::Typo, Given::Initial) => Initial,
                 _ => Different,
             };
         }
+        // Swapped: given on one side is the family on the other. Each side
+        // may also carry its own damage (an initial, a nickname, a slip),
+        // as long as one side matches outright or by a slip.
         let cross = (
-            given_rel(&a.given, &b.family),
-            family_rel(&a.family, &b.given),
+            family_rel(&a.given, &b.family),
+            given_rel(&a.family, &b.given),
         );
-        if matches!(cross.0, Given::Equal | Given::Typo)
-            && matches!(cross.1, Given::Equal | Given::Typo)
-        {
+        if matches!(cross.0, Given::Equal | Given::Typo) && cross.1 != Given::No {
             return Swapped;
         }
         return match given_rel(&a.given, &b.given) {
+            Given::Equal | Given::Nick | Given::Typo | Given::Initial
+                if close(&a.family, &b.family) =>
+            {
+                Similar
+            }
             Given::Equal | Given::Nick => FamilyDiffers,
             _ => Different,
         };
@@ -640,5 +672,36 @@ mod tests {
             NameMatch::Different
         );
         assert_eq!(cmp("Chris Lee", "Christine Lee"), NameMatch::Nickname);
+        assert_eq!(cmp("Paul Weber", "Paula Weber"), NameMatch::Different);
+    }
+
+    #[test]
+    fn slips_found_in_the_synthetic_book() {
+        let cmp = |a: &str, b: &str| compare(&fname(a), &fname(b));
+        // Letters swapped at the very end.
+        assert_eq!(cmp("Manihs Joshi", "Manish Joshi"), NameMatch::Typo);
+        // A typo of the full name against a nickname for it.
+        assert_eq!(cmp("Vicotria White", "Vicky White"), NameMatch::Typo);
+        // A lone name saved in the family slot is still a first name.
+        let lone = name_key(&Contact {
+            name: Name {
+                family: "Swati".into(),
+                ..Name::default()
+            },
+            ..Contact::default()
+        });
+        assert_eq!(compare(&lone, &fname("Swati Desai")), NameMatch::Partial);
+        assert_eq!(cmp("Wright M.", "Michael Wright"), NameMatch::Swapped);
+        assert_eq!(cmp("Williams Patricia", "Pat Williams"), NameMatch::Swapped);
+        assert_eq!(cmp("Ptel Harish", "Harish Patel"), NameMatch::Swapped);
+        assert_eq!(cmp("Prrakash Baht", "Prakash Bhat"), NameMatch::Typo);
+        assert_eq!(cmp("Kiran Koaor", "Kiran Kapoor"), NameMatch::Similar);
+        assert_eq!(
+            cmp("C. Thoompson", "Charlotte Thompson"),
+            NameMatch::Initial
+        );
+        // Still different people.
+        assert_eq!(cmp("Ravi Shah", "Rani Shah"), NameMatch::Different);
+        assert_eq!(cmp("Priya Shah", "Priya Mehta"), NameMatch::FamilyDiffers);
     }
 }
