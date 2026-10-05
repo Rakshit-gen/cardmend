@@ -97,7 +97,10 @@ pub struct Book {
 
 impl Book {
     pub fn add(&mut self, name: &str, bytes: &[u8]) {
-        let (cs, issues) = read_file(name, bytes);
+        let (cs, mut issues) = read_file(name, bytes);
+        // The reader notices a missing END:VCARD only at the next card, so
+        // put problems back in file order for reading top to bottom.
+        issues.sort_by_key(|i| i.line);
         self.files.push((name.to_string(), cs.len()));
         for mut c in cs {
             c.id = self.contacts.len();
