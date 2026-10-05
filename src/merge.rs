@@ -109,6 +109,29 @@ fn name_quality(c: &Contact) -> i32 {
     q + key.given.chars().count().min(8) as i32 / 3
 }
 
+/// How many of the other copies back this name up: the same surname, the
+/// same first name, or a nickname for it. Breaks ties towards the form most
+/// copies use, so a swapped "Williams Patricia" or a typo loses to the
+/// spelling the rest agree on.
+fn agreement(c: &Contact, members: &[&Contact]) -> i32 {
+    let k = normalize::name_key(c);
+    let mut n = 0;
+    for o in members.iter().filter(|o| o.id != c.id) {
+        let ok = normalize::name_key(o);
+        if !k.family.is_empty() && ok.family == k.family {
+            n += 1;
+        }
+        if !k.given.is_empty() && ok.given == k.given {
+            n += 1;
+        } else if !k.given.is_empty()
+            && normalize::canonical(&ok.given)[1..].contains(&k.given.as_str())
+        {
+            n += 1;
+        }
+    }
+    n
+}
+
 /// Members with the most common value first; ties go to the earlier one.
 fn most_common(alts: &[Alternative], prefer: impl Fn(&Alternative) -> i32) -> Option<usize> {
     alts.iter()
@@ -176,7 +199,7 @@ pub fn merge(members: &[&Contact], region: Id, choices: &Choices) -> Merged {
             &alternatives.name,
             members
                 .iter()
-                .max_by_key(|c| (name_quality(c), usize::MAX - c.id))
+                .max_by_key(|c| (name_quality(c) + agreement(c, members), usize::MAX - c.id))
                 .map(|c| c.id),
         ),
         birthday: pick(
@@ -237,7 +260,13 @@ pub fn merge(members: &[&Contact], region: Id, choices: &Choices) -> Merged {
     for c in members {
         let mut names = c.nicknames.clone();
         let k = normalize::name_key(c);
-        if k.kind == NameKind::Person && k.given != base_given && k.given.chars().count() > 1 {
+        // Only real nicknames: a typo or a surname from a swapped copy
+        // would just be noise in the nickname field.
+        let nick = |a: &str, b: &str| {
+            let (ca, cb) = (normalize::canonical(a), normalize::canonical(b));
+            ca.iter().any(|x| cb.contains(x))
+        };
+        if k.kind == NameKind::Person && k.given != base_given && nick(&k.given, &base_given) {
             let original = c
                 .display_name()
                 .split_whitespace()
@@ -589,6 +618,27 @@ mod tests {
         let full = c(1, "Michael Wright");
         let m = merge(&[&short, &full], Id::IN, &Choices::default());
         assert_eq!(m.contact.display_name(), "Michael Wright");
+    }
+
+    #[test]
+    fn picks_the_name_most_copies_agree_on() {
+        let mut swapped = c(0, "Williams Patricia");
+        swapped.name = Name {
+            given: "Williams".into(),
+            family: "Patricia".into(),
+            ..Name::default()
+        };
+        let typo = c(1, "Ptricia Williams");
+        let right = c(2, "Patricia Williams");
+        let nick = c(3, "Pat Williams");
+        let m = merge(
+            &[&swapped, &typo, &right, &nick],
+            Id::IN,
+            &Choices::default(),
+        );
+        assert_eq!(m.contact.display_name(), "Patricia Williams");
+        // Pat is a nickname; the typo and the swapped surname are not.
+        assert_eq!(m.contact.nicknames, ["Pat"]);
     }
 
     #[test]
