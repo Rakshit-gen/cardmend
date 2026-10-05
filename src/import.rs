@@ -24,10 +24,16 @@ pub fn decode_text(bytes: &[u8]) -> String {
     }
     // UTF-16 without a BOM still has a zero byte in every ASCII character.
     if bytes.len() >= 4 && bytes[1] == 0 && bytes[3] == 0 {
-        return encoding_rs::UTF_16LE.decode_without_bom_handling(bytes).0.into_owned();
+        return encoding_rs::UTF_16LE
+            .decode_without_bom_handling(bytes)
+            .0
+            .into_owned();
     }
     if bytes.len() >= 4 && bytes[0] == 0 && bytes[2] == 0 {
-        return encoding_rs::UTF_16BE.decode_without_bom_handling(bytes).0.into_owned();
+        return encoding_rs::UTF_16BE
+            .decode_without_bom_handling(bytes)
+            .0
+            .into_owned();
     }
     match std::str::from_utf8(bytes) {
         Ok(s) => s.to_string(),
