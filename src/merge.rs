@@ -94,6 +94,11 @@ fn name_quality(c: &Contact) -> i32 {
     if !key.family.is_empty() {
         q += 4;
     }
+    // "C. Wood" or "Wright M.": an initial is a worse name to keep than the
+    // spelled-out one, wherever it sits.
+    if key.given.chars().count() == 1 || key.family.chars().count() == 1 {
+        q -= 5;
+    }
     if shown.contains(['(', '[']) {
         q -= 3;
     }
@@ -571,6 +576,19 @@ mod tests {
         let m = merge(&[&mom, &full], Id::IN, &Choices::default());
         assert_eq!(m.contact.name.given, "Sunita");
         assert_eq!(m.alternatives.name.len(), 2);
+    }
+
+    #[test]
+    fn name_quality_avoids_initials() {
+        let mut short = c(0, "");
+        short.name = Name {
+            given: "Wright".into(),
+            family: "M.".into(),
+            ..Name::default()
+        };
+        let full = c(1, "Michael Wright");
+        let m = merge(&[&short, &full], Id::IN, &Choices::default());
+        assert_eq!(m.contact.display_name(), "Michael Wright");
     }
 
     #[test]
