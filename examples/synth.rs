@@ -16,6 +16,8 @@
 //! truth.json records which person every entry belongs to, what damage each
 //! copy got, and the traps. Nothing here reads a real address book.
 
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -79,14 +81,105 @@ const IN_M: &[&str] = &[
     "Prakash",
     "Gaurav",
     "Akash",
+    "Vivek",
+    "Ashok",
+    "Ravi",
+    "Sunil",
+    "Mahesh",
+    "Naveen",
+    "Pradeep",
+    "Ramesh",
+    "Sachin",
+    "Tarun",
+    "Vijay",
+    "Yash",
+    "Abhishek",
+    "Ajay",
+    "Alok",
+    "Bharat",
+    "Chetan",
+    "Dinesh",
+    "Ganesh",
+    "Hemant",
+    "Jayant",
+    "Kunal",
+    "Mohit",
+    "Neeraj",
+    "Pankaj",
+    "Rakesh",
+    "Sameer",
+    "Tushar",
+    "Uday",
+    "Vinod",
 ];
 const IN_F: &[&str] = &[
     "Priya", "Ananya", "Kavya", "Sneha", "Pooja", "Neha", "Divya", "Meera", "Shreya", "Aisha",
     "Sunita", "Anjali", "Ritu", "Swati", "Nisha", "Lakshmi", "Deepa", "Isha", "Kiran", "Tanvi",
+    "Aarti", "Bhavna", "Chitra", "Gauri", "Geeta", "Hema", "Jyoti", "Kavita", "Leela", "Madhuri",
+    "Mansi", "Nandini", "Pallavi", "Rekha", "Rina", "Sapna", "Seema", "Shalini", "Shilpa", "Smita",
+    "Sonal", "Trisha", "Usha", "Vandana", "Varsha", "Yamini", "Zara", "Asha", "Bindu", "Komal",
 ];
 const IN_LAST: &[&str] = &[
-    "Sharma", "Patel", "Shah", "Mehta", "Iyer", "Nair", "Reddy", "Gupta", "Singh", "Kumar",
-    "Desai", "Joshi", "Rao", "Verma", "Kapoor", "Menon", "Pillai", "Chopra", "Bhat", "Agarwal",
+    "Sharma",
+    "Patel",
+    "Shah",
+    "Mehta",
+    "Iyer",
+    "Nair",
+    "Reddy",
+    "Gupta",
+    "Singh",
+    "Kumar",
+    "Desai",
+    "Joshi",
+    "Rao",
+    "Verma",
+    "Kapoor",
+    "Menon",
+    "Pillai",
+    "Chopra",
+    "Bhat",
+    "Agarwal",
+    "Bose",
+    "Banerjee",
+    "Chatterjee",
+    "Das",
+    "Dutta",
+    "Ghosh",
+    "Mukherjee",
+    "Sen",
+    "Saxena",
+    "Srivastava",
+    "Tiwari",
+    "Mishra",
+    "Pandey",
+    "Dubey",
+    "Yadav",
+    "Chauhan",
+    "Rathore",
+    "Thakur",
+    "Malhotra",
+    "Khanna",
+    "Bajaj",
+    "Arora",
+    "Sethi",
+    "Bhatia",
+    "Kulkarni",
+    "Deshpande",
+    "Patil",
+    "Jain",
+    "Shetty",
+    "Hegde",
+    "Kamath",
+    "Naidu",
+    "Krishnan",
+    "Subramanian",
+    "Venkatesh",
+    "Raman",
+    "Chandra",
+    "Goel",
+    "Mittal",
+    "Bansal",
 ];
 const EN_M: &[&str] = &[
     "Robert",
@@ -109,6 +202,26 @@ const EN_M: &[&str] = &[
     "Steven",
     "Timothy",
     "John",
+    "George",
+    "Henry",
+    "Charles",
+    "Peter",
+    "Paul",
+    "Mark",
+    "Simon",
+    "Oliver",
+    "Jack",
+    "Harry",
+    "Adam",
+    "Jonathan",
+    "Stephen",
+    "Philip",
+    "Martin",
+    "Alexander",
+    "Patrick",
+    "Kevin",
+    "Brian",
+    "Gareth",
 ];
 const EN_F: &[&str] = &[
     "Elizabeth",
@@ -131,11 +244,35 @@ const EN_F: &[&str] = &[
     "Sophie",
     "Lucy",
     "Grace",
+    "Alice",
+    "Helen",
+    "Claire",
+    "Emma",
+    "Jessica",
+    "Rebecca",
+    "Amy",
+    "Natalie",
+    "Rosie",
+    "Fiona",
+    "Joanna",
+    "Louise",
+    "Caroline",
+    "Megan",
+    "Amelia",
+    "Chloe",
+    "Harriet",
+    "Imogen",
+    "Philippa",
+    "Eleanor",
 ];
 const EN_LAST: &[&str] = &[
     "Smith", "Jones", "Taylor", "Brown", "Williams", "Wilson", "Johnson", "Davies", "Robinson",
     "Wright", "Thompson", "Evans", "Walker", "White", "Roberts", "Green", "Hall", "Wood",
-    "Jackson", "Clarke",
+    "Jackson", "Clarke", "Harris", "King", "Lee", "Lewis", "Hill", "Moore", "Clark", "Turner",
+    "Baker", "Cooper", "Hughes", "Edwards", "Morris", "Ward", "Phillips", "Parker", "Bennett",
+    "Cook", "Mitchell", "Bailey", "Carter", "Shaw", "Harrison", "Ellis", "Kelly", "Murphy",
+    "Price", "Webb", "Fisher", "Marshall", "Russell", "Grant", "Spencer", "Fletcher", "Lawrence",
+    "Holmes", "Barker", "Palmer", "Knight", "Martin",
 ];
 const DE_M: &[&str] = &[
     "Jürgen",
@@ -148,6 +285,16 @@ const DE_M: &[&str] = &[
     "Felix",
     "Sebastian",
     "Florian",
+    "Dominik",
+    "Philipp",
+    "Moritz",
+    "Niklas",
+    "Jan",
+    "Uwe",
+    "Dieter",
+    "Wolfgang",
+    "Helmut",
+    "Klaus",
 ];
 const DE_F: &[&str] = &[
     "Anna",
@@ -160,6 +307,16 @@ const DE_F: &[&str] = &[
     "Sabine",
     "Ute",
     "Greta",
+    "Franziska",
+    "Monika",
+    "Petra",
+    "Claudia",
+    "Birgit",
+    "Heike",
+    "Lisa",
+    "Marie",
+    "Carolin",
+    "Nadine",
 ];
 const DE_LAST: &[&str] = &[
     "Müller",
@@ -174,6 +331,24 @@ const DE_LAST: &[&str] = &[
     "Hoffmann",
     "Köhler",
     "Groß",
+    "Koch",
+    "Richter",
+    "Klein",
+    "Wolf",
+    "Schröder",
+    "Neumann",
+    "Schwarz",
+    "Zimmermann",
+    "Braun",
+    "Krüger",
+    "Hofmann",
+    "Hartmann",
+    "Lange",
+    "Werner",
+    "Krause",
+    "Lehmann",
+    "Schmitt",
+    "Walter",
 ];
 const ES_M: &[&str] = &[
     "José",
@@ -184,9 +359,18 @@ const ES_M: &[&str] = &[
     "Pablo",
     "Andrés",
     "Raúl",
+    "Antonio",
+    "Manuel",
+    "Francisco",
+    "Jorge",
+    "Luis",
+    "Sergio",
+    "Fernando",
+    "Diego",
 ];
 const ES_F: &[&str] = &[
-    "María", "Lucía", "Carmen", "Ana", "Sofía", "Isabel", "Inés", "Elena",
+    "María", "Lucía", "Carmen", "Ana", "Sofía", "Isabel", "Inés", "Elena", "Laura", "Marta",
+    "Paula", "Cristina", "Pilar", "Rosa", "Teresa", "Beatriz",
 ];
 const ES_LAST: &[&str] = &[
     "García",
@@ -198,6 +382,17 @@ const ES_LAST: &[&str] = &[
     "Gómez",
     "Fernández",
     "Núñez",
+    "Díaz",
+    "Hernández",
+    "Moreno",
+    "Muñoz",
+    "Álvarez",
+    "Romero",
+    "Alonso",
+    "Gutiérrez",
+    "Navarro",
+    "Torres",
+    "Domínguez",
 ];
 
 /// Nicknames people actually save, matching cardmend's table on purpose
@@ -1086,6 +1281,23 @@ fn main() -> anyhow::Result<()> {
 
     let mut persons: Vec<Person> = Vec::new();
     let mut traps: Vec<serde_json::Value> = Vec::new();
+    // Full names and email addresses already handed out. Outside the
+    // same-name trap, two different people never get the same full name,
+    // and an email address always belongs to one person (or one household
+    // in the family email trap): that's how real address books look, and
+    // without it a big book is full of impossible "different people with
+    // the same name and the same address" pairs.
+    let names: RefCell<HashSet<(String, String)>> = RefCell::default();
+    let emails: RefCell<HashSet<String>> = RefCell::default();
+    let unique_email = |rng: &mut Rng, e: String| -> String {
+        let mut e = e;
+        while emails.borrow().contains(&e) {
+            let (local, domain) = e.split_once('@').unwrap();
+            e = format!("{local}{}@{domain}", rng.digits(1));
+        }
+        emails.borrow_mut().insert(e.clone());
+        e
+    };
     let new_person = |rng: &mut Rng, id: usize, culture: Option<Culture>| -> Person {
         let culture = culture.unwrap_or(match rng.below(100) {
             0..=59 => Culture::Indian,
@@ -1100,8 +1312,15 @@ fn main() -> anyhow::Result<()> {
             Culture::German => (DE_M, DE_F, DE_LAST),
             Culture::Spanish => (ES_M, ES_F, ES_LAST),
         };
-        let given = rng.pick(if female { f } else { m }).to_string();
-        let family = rng.pick(l).to_string();
+        let (mut given, mut family) = (String::new(), String::new());
+        for _ in 0..50 {
+            given = rng.pick(if female { f } else { m }).to_string();
+            family = rng.pick(l).to_string();
+            if !names.borrow().contains(&(given.clone(), family.clone())) {
+                break;
+            }
+        }
+        names.borrow_mut().insert((given.clone(), family.clone()));
         let country = match culture {
             Culture::Indian if rng.chance(0.1) => *rng.pick(&[Id::US, Id::GB]),
             Culture::Indian => Id::IN,
@@ -1116,7 +1335,10 @@ fn main() -> anyhow::Result<()> {
             .collect();
         let nick = (!nicks.is_empty() && rng.chance(0.7)).then(|| rng.pick(&nicks).to_string());
         let mob = mobile(rng, country);
-        let email = rng.chance(0.75).then(|| email_for(rng, &given, &family));
+        let email = rng
+            .chance(0.75)
+            .then(|| email_for(rng, &given, &family))
+            .map(|e| unique_email(rng, e));
         let birthday = rng.chance(0.4).then(|| {
             let y = if rng.chance(0.7) {
                 1950 + rng.below(55) as u16
@@ -1183,12 +1405,13 @@ fn main() -> anyhow::Result<()> {
         if rng.chance(0.3) {
             let w = rng.below(companies.len());
             p.work = Some(w);
-            p.work_email = Some(format!(
+            let e = format!(
                 "{}.{}@{}",
                 ascii(&p.given).to_lowercase(),
                 ascii(&p.family).to_lowercase(),
                 companies[w].1
-            ));
+            );
+            p.work_email = Some(unique_email(&mut rng, e));
             p.direct = rng.chance(0.5).then(|| landline(&mut rng, "80"));
         }
         persons.push(p);
@@ -1211,11 +1434,18 @@ fn main() -> anyhow::Result<()> {
             let mut used = vec![head.given.clone()];
             for _ in 1..size {
                 let mut q = new_person(&mut rng, persons.len(), Some(head.culture));
-                while used.contains(&q.given) {
+                while used.contains(&q.given)
+                    || names
+                        .borrow()
+                        .contains(&(q.given.clone(), head.family.clone()))
+                {
                     q = new_person(&mut rng, persons.len(), Some(head.culture));
                 }
                 used.push(q.given.clone());
                 q.family = head.family.clone();
+                names
+                    .borrow_mut()
+                    .insert((q.given.clone(), q.family.clone()));
                 q.landline = Some(line.clone());
                 q.address = head.address.clone();
                 q.family_email = fam_email.clone();
