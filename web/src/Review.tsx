@@ -27,7 +27,7 @@ function Choices({
   number: (id: number) => number;
   onChoose: (field: SingleField, id: number) => void;
 }) {
-  const from = (ids: number[]) => `card ${ids.map(number).join(", ")}`;
+  const from = (ids: number[]) => `card ${ids.map(number).sort((x, y) => x - y).join(", ")}`;
   return (
     <div className="choices">
       {FIELDS.map(({ field, title }) => {
