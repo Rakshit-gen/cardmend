@@ -245,27 +245,29 @@ fn first_of(r: &Row, names: &[&str]) -> String {
 }
 
 fn outlook(r: &Row) -> Contact {
-    let mut c = Contact::default();
-    c.name = Name {
-        family: r.get("Last Name"),
-        given: r.get("First Name"),
-        additional: r.get("Middle Name"),
-        // Outlook's "Title" column is the honorific; the job is "Job Title".
-        prefix: r.get("Title"),
-        suffix: r.get("Suffix"),
+    let mut c = Contact {
+        name: Name {
+            family: r.get("Last Name"),
+            given: r.get("First Name"),
+            additional: r.get("Middle Name"),
+            // Outlook's "Title" column is the honorific; the job is "Job Title".
+            prefix: r.get("Title"),
+            suffix: r.get("Suffix"),
+        },
+        nicknames: multi(&r.get("Nickname")),
+        org: r.get("Company"),
+        department: r.get("Department"),
+        title: r.get("Job Title"),
+        birthday: clean_date(&r.get("Birthday")),
+        note: r.get("Notes").replace("\r\n", "\n"),
+        categories: r
+            .get("Categories")
+            .split(';')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        ..Contact::default()
     };
-    c.nicknames = multi(&r.get("Nickname"));
-    c.org = r.get("Company");
-    c.department = r.get("Department");
-    c.title = r.get("Job Title");
-    c.birthday = clean_date(&r.get("Birthday"));
-    c.note = r.get("Notes").replace("\r\n", "\n");
-    c.categories = r
-        .get("Categories")
-        .split(';')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
     let phones: [(&str, &[&str], Option<&str>); 13] = [
         ("Mobile Phone", &["cell"], None),
         ("Home Phone", &["home"], None),

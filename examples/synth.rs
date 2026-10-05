@@ -551,7 +551,7 @@ fn damage(
                 if rng.chance(0.5) && !e.emails.is_empty() {
                     e.emails.clear();
                 } else {
-                    e.phones.truncate(0);
+                    e.phones.clear();
                 }
                 e.damage.push("missing_field");
             }
@@ -873,8 +873,7 @@ fn android_line(name: &str, value: &str, out: &mut String) {
         qp(value)
     );
     let mut w = 0;
-    let mut chars = line.chars().peekable();
-    while let Some(c) = chars.next() {
+    for c in line.chars() {
         // Break before 76 columns, never inside an =XX escape.
         if w >= 70 && c == '=' {
             out.push_str("=\r\n");
