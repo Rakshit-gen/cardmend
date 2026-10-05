@@ -107,6 +107,10 @@ fn name_quality(c: &Contact) -> i32 {
     {
         q -= 1;
     }
+    // A title is fine as a prefix field but clutters the name people see.
+    if normalize::starts_with_title(&shown) {
+        q -= 1;
+    }
     if shown.contains(['(', '[']) {
         q -= 3;
     }
@@ -652,6 +656,13 @@ mod tests {
     #[test]
     fn prefers_normal_capitals() {
         let (a, b) = (c(0, "KAVITA DUTTA"), c(1, "Kavita Dutta"));
+        let m = merge(&[&a, &b], Id::IN, &Choices::default());
+        assert_eq!(m.contact.display_name(), "Kavita Dutta");
+    }
+
+    #[test]
+    fn prefers_the_name_without_a_title() {
+        let (a, b) = (c(0, "Mrs. Kavita Dutta"), c(1, "Kavita Dutta"));
         let m = merge(&[&a, &b], Id::IN, &Choices::default());
         assert_eq!(m.contact.display_name(), "Kavita Dutta");
     }

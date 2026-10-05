@@ -288,6 +288,12 @@ fn tokens(s: &str) -> Vec<String> {
         .collect()
 }
 
+/// "Mrs. Kavita Dutta" starts with a title; "Kavita Dutta" does not.
+pub fn starts_with_title(name: &str) -> bool {
+    let t = tokens(name);
+    t.len() > 1 && HONORIFICS.contains(&t[0].as_str())
+}
+
 fn clean_person(mut t: Vec<String>) -> Vec<String> {
     while t.len() > 1 && HONORIFICS.contains(&t[0].as_str()) {
         t.remove(0);
