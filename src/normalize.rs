@@ -538,10 +538,11 @@ fn person(a: &NameKey, b: &NameKey) -> NameMatch {
     // One or both are a single word.
     let (one, other) = if af { (b, a) } else { (a, b) };
     let word = &one.given;
-    match given_rel(word, &other.given) {
-        Given::Equal | Given::Nick => return Partial,
-        Given::Typo if other.family.is_empty() => return Partial,
-        _ => {}
+    // Any fit with the other's first name: the same, a nickname, a slip
+    // ("Vijya" for Vijay) or an initial ("Alok" and "A. Shah"). Only one
+    // name to go on, so it stays weak evidence either way.
+    if given_rel(word, &other.given) != Given::No {
+        return Partial;
     }
     // The word may be the other copy's surname, or its first name stored in
     // the family slot ("Mike" against N:Michael;Walker).
@@ -696,6 +697,10 @@ mod tests {
         }
         assert_eq!(cmp("Michael Wright", "Wright M."), NameMatch::Swapped);
         assert_eq!(cmp("Mike", "Walker Michael"), NameMatch::Partial);
+        assert_eq!(cmp("Vijya", "Vijay Raman"), NameMatch::Partial);
+        assert_eq!(cmp("Alok", "A. Shah"), NameMatch::Partial);
+        // Still different: a changed letter in a short name.
+        assert_eq!(cmp("Ravi", "Rani Kumar"), NameMatch::Different);
     }
 
     #[test]
