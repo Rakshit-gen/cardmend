@@ -3,6 +3,7 @@
 pub mod contact;
 pub mod csv_import;
 pub mod import;
+pub mod matching;
 pub mod normalize;
 pub mod vcard;
 pub mod write;
