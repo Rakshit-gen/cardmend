@@ -505,6 +505,11 @@ dd {
 .choices label:hover {
   background: #eef2f7;
 }
+.choices img {
+  align-self: center;
+  border-radius: 2px;
+  object-fit: cover;
+}
 .choices input {
   accent-color: var(--pen);
   margin: 0;

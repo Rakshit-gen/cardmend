@@ -56,6 +56,15 @@ function Choices({
                     checked={on}
                     onChange={() => onChoose(field, id)}
                   />
+                  {field === "photo" && (
+                    <img
+                      src={`/api/photo/${id}`}
+                      alt={`Photo from card ${number(id)}`}
+                      width={40}
+                      height={40}
+                      onError={(e) => (e.currentTarget.hidden = true)}
+                    />
+                  )}
                   <span className="data">{show(a.value)}</span>
                   <span className="label"> {from(a.from)}</span>
                 </label>
