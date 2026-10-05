@@ -99,6 +99,14 @@ fn name_quality(c: &Contact) -> i32 {
     if key.given.chars().count() == 1 || key.family.chars().count() == 1 {
         q -= 5;
     }
+    // "kavita dutta" or "KAVITA DUTTA": typed in a hurry or by an old
+    // phone; the normally capitalised copy reads better.
+    let letters: Vec<char> = shown.chars().filter(|c| c.is_alphabetic()).collect();
+    if letters.len() > 1
+        && (letters.iter().all(|c| c.is_lowercase()) || letters.iter().all(|c| c.is_uppercase()))
+    {
+        q -= 1;
+    }
     if shown.contains(['(', '[']) {
         q -= 3;
     }
@@ -639,6 +647,13 @@ mod tests {
         assert_eq!(m.contact.display_name(), "Patricia Williams");
         // Pat is a nickname; the typo and the swapped surname are not.
         assert_eq!(m.contact.nicknames, ["Pat"]);
+    }
+
+    #[test]
+    fn prefers_normal_capitals() {
+        let (a, b) = (c(0, "KAVITA DUTTA"), c(1, "Kavita Dutta"));
+        let m = merge(&[&a, &b], Id::IN, &Choices::default());
+        assert_eq!(m.contact.display_name(), "Kavita Dutta");
     }
 
     #[test]
