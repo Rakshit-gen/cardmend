@@ -1,0 +1,31 @@
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Apple Inc.//iPhone OS 17.5//EN
+N:Smith;Robert;;Dr.;
+FN:Dr. Robert Smith
+ORG:Acme Logistics;Operations
+TITLE:Operations manager
+item1.EMAIL;type=INTERNET;type=pref:rob.smith@acme-logistics.example
+item2.TEL;type=CELL;type=VOICE;type=pref:+1 (415) 555-0134
+item2.X-ABLabel:_$!<Mobile>!$_
+item3.TEL:+1 415 555 0199
+item3.X-ABLabel:Office
+item4.ADR;type=HOME;type=pref:;;12 Elm Street;San Francisco;CA;94110;United States
+item4.X-ABADR:us
+item5.X-ABDATE;type=pref:2015-06-20
+item5.X-ABLabel:_$!<Anniversary>!$_
+BDAY;X-APPLE-OMIT-YEAR=1604:1604-03-07
+NOTE:Met at the 2019 conference\, ask about the boat.\nLikes sailing.
+PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDA
+ sLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA
+ /8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==
+X-SOCIALPROFILE;type=twitter:https://twitter.com/robsmith
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;;;;
+FN:Acme Logistics
+ORG:Acme Logistics;
+X-ABShowAs:COMPANY
+TEL;type=WORK;type=VOICE:+1 415 555 0100
+END:VCARD

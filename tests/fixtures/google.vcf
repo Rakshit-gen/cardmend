@@ -1,0 +1,14 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Liz Taylor
+N:Taylor;Liz;;;
+NICKNAME:Lizzie
+EMAIL;TYPE=INTERNET;TYPE=HOME:Liz.Taylor+shop@gmail.com
+TEL;TYPE=CELL:+44 7911 123456
+item1.TEL:020 7946 0018
+item1.X-ABLabel:Grandma's
+item2.URL:https\://liztaylor.example
+item2.X-ABLabel:blog
+PHOTO:https://lh3.googleusercontent.com/contacts/AG6tpzExample
+CATEGORIES:myContacts,Family
+END:VCARD

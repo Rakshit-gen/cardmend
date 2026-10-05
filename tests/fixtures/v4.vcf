@@ -1,0 +1,9 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:Ana María Pérez
+N:Pérez;Ana María;;;
+TEL;VALUE=uri;TYPE="voice,cell":tel:+34-612-345-678
+EMAIL;TYPE=work:ana@empresa.example
+PHOTO:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==
+BDAY:--0412
+END:VCARD
