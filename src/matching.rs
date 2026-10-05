@@ -213,14 +213,11 @@ pub fn find_shared(prep: &[Prepared]) -> Vec<Shared> {
     }
     let mut out: Vec<Shared> = holders
         .into_iter()
-        .filter(|(_, (_, who))| who.len() > 1)
-        .filter(|(_, (_, who))| {
-            who.iter().enumerate().any(|(x, &a)| {
-                who[x + 1..].iter().any(|&b| {
-                    normalize::compare(&prep[a].name, &prep[b].name) == NameMatch::Different
-                })
-            })
+        .map(|(k, (display, mut who))| {
+            who.dedup();
+            (k, (display, who))
         })
+        .filter(|(_, (_, who))| who.len() > 1 && people_behind(prep, who) > 1)
         .map(|(k, (display, contacts))| Shared {
             key: k.to_string(),
             display,
@@ -229,6 +226,39 @@ pub fn find_shared(prep: &[Prepared]) -> Vec<Shared> {
         .collect();
     out.sort_by(|a, b| a.key.cmp(&b.key));
     out
+}
+
+/// How many different people hold an identifier, judged by name: holders
+/// whose names could be the same person (directly or through another
+/// holder) count as one. A single odd pair isn't enough: "Vijya" next to
+/// "Vijay Raman" and "Vijay" is one person with a typo, not a shared
+/// number. Holders without a person's name (blank, "Mom", a company) don't
+/// link anyone, or a nameless entry would join a whole family.
+fn people_behind(prep: &[Prepared], who: &[usize]) -> usize {
+    let named: Vec<usize> = who
+        .iter()
+        .copied()
+        .filter(|&i| prep[i].name.kind == NameKind::Person)
+        .collect();
+    let mut root: Vec<usize> = (0..named.len()).collect();
+    fn find(root: &mut [usize], mut x: usize) -> usize {
+        while root[x] != x {
+            root[x] = root[root[x]];
+            x = root[x];
+        }
+        x
+    }
+    for x in 0..named.len() {
+        for y in x + 1..named.len() {
+            if normalize::compare(&prep[named[x]].name, &prep[named[y]].name)
+                != NameMatch::Different
+            {
+                let (a, b) = (find(&mut root, x), find(&mut root, y));
+                root[a] = b;
+            }
+        }
+    }
+    (0..named.len()).filter(|&x| find(&mut root, x) == x).count()
 }
 
 /// True when two contacts can't be the same person whatever else they
@@ -456,6 +486,22 @@ mod tests {
         assert!(!found.iter().any(|x| (x.a, x.b) == (0, 1)));
         let pr = found.iter().find(|x| (x.a, x.b) == (0, 2)).unwrap();
         assert!(pr.evidence[1].text.contains("counts for little"));
+    }
+
+    #[test]
+    fn a_typo_in_one_copy_does_not_make_a_number_shared() {
+        let cs = [
+            person("Vijay Raman", &["88392-91444"], &[]),
+            person("Vijay", &["+91 88392 91444"], &[]),
+            person("Vijya", &["08839291444"], &[]),
+            // A nameless entry links nobody: the household below stays two people.
+            person("", &["022 2345 6789"], &[]),
+            person("Priya Shah", &["022 2345 6789"], &[]),
+            person("Rahul Shah", &["022 2345 6789"], &[]),
+        ];
+        let shared = find_shared(&prep(&cs));
+        assert_eq!(shared.len(), 1);
+        assert_eq!(shared[0].display, "+91 22 2345 6789");
     }
 
     #[test]
