@@ -163,7 +163,13 @@ pub fn merge(members: &[&Contact], region: Id, choices: &Choices) -> Merged {
     let by_id = |id: usize| members.iter().find(|c| c.id == id).copied();
 
     let alternatives = Alternatives {
-        name: distinct(members, |c| c.display_name(), normalize::fold),
+        // Best-written copy first, so "kavita dutta" and "Kavita Dutta"
+        // show as the latter.
+        name: {
+            let mut best: Vec<&Contact> = members.to_vec();
+            best.sort_by_key(|c| std::cmp::Reverse(name_quality(c)));
+            distinct(&best, |c| c.display_name(), normalize::fold)
+        },
         birthday: distinct(
             members,
             |c| c.birthday.clone().unwrap_or_default(),
@@ -658,6 +664,9 @@ mod tests {
         let (a, b) = (c(0, "KAVITA DUTTA"), c(1, "Kavita Dutta"));
         let m = merge(&[&a, &b], Id::IN, &Choices::default());
         assert_eq!(m.contact.display_name(), "Kavita Dutta");
+        // Same name either way, offered once, in its better spelling.
+        assert_eq!(m.alternatives.name.len(), 1);
+        assert_eq!(m.alternatives.name[0].value, "Kavita Dutta");
     }
 
     #[test]
