@@ -194,7 +194,7 @@ fn main() -> anyhow::Result<()> {
                 c[m].source.line
             );
         }
-        for &p in &g.pairs {
+        for &p in g.pairs.iter().take(3) {
             let why: Vec<&str> = a.pairs[p]
                 .evidence
                 .iter()
@@ -211,6 +211,12 @@ fn main() -> anyhow::Result<()> {
                 String::new()
             };
             println!("       why{which}: {}", why.join("; "));
+        }
+        if g.pairs.len() > 3 {
+            println!(
+                "       and {} more pairs; --json lists them all",
+                g.pairs.len() - 3
+            );
         }
     }
     if a.groups.len() > cli.top {
