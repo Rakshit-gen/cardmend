@@ -72,7 +72,10 @@ pub fn phone(raw: &str, region: Id) -> Option<Phone> {
 /// part are dropped, because Gmail itself ignores them; other providers
 /// may treat them as different mailboxes.
 pub fn email(raw: &str) -> Option<String> {
-    let e = raw.trim().trim_start_matches("mailto:").to_lowercase();
+    // Lowercase first: the scheme is case-insensitive, and Outlook writes
+    // MAILTO: in capitals.
+    let e = raw.trim().to_lowercase();
+    let e = e.strip_prefix("mailto:").unwrap_or(&e).trim().to_string();
     let (local, domain) = e.rsplit_once('@')?;
     if local.is_empty() || !domain.contains('.') {
         return None;
@@ -620,6 +623,10 @@ mod tests {
             Some("rob.smith+x@acme.example")
         );
         assert_eq!(email("not an email"), None);
+        assert_eq!(
+            email("MAILTO:Ann@Example.org").as_deref(),
+            Some("ann@example.org")
+        );
     }
 
     #[test]
