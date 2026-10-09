@@ -48,8 +48,23 @@ impl Prop {
 /// Header of a raw line (everything before the value) mentions QP. Checked
 /// before parsing because QP soft line breaks change how lines join.
 fn header_has(line: &str, word: &str) -> bool {
-    let head = line.split(':').next().unwrap_or("");
-    head.to_ascii_uppercase().contains(word)
+    line[..value_start(line).unwrap_or(line.len())]
+        .to_ascii_uppercase()
+        .contains(word)
+}
+
+/// The colon that starts the value: the first one that isn't inside a
+/// quoted parameter value (`LABEL="a:b"`).
+fn value_start(line: &str) -> Option<usize> {
+    let mut quoted = false;
+    for (i, c) in line.char_indices() {
+        match c {
+            '"' => quoted = !quoted,
+            ':' if !quoted => return Some(i),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn looks_like_base64(s: &str) -> bool {
@@ -100,21 +115,7 @@ pub fn unfold(text: &str) -> Vec<(usize, String)> {
 /// Split a logical line into a property. Returns None for lines with no
 /// colon, which are not properties.
 pub fn parse_line(line_no: usize, line: &str) -> Option<Prop> {
-    // The value starts at the first colon that isn't inside a quoted
-    // parameter value (`LABEL="a:b"`).
-    let mut quoted = false;
-    let mut split = None;
-    for (i, c) in line.char_indices() {
-        match c {
-            '"' => quoted = !quoted,
-            ':' if !quoted => {
-                split = Some(i);
-                break;
-            }
-            _ => {}
-        }
-    }
-    let split = split?;
+    let split = value_start(line)?;
     let (head, value) = (&line[..split], &line[split + 1..]);
 
     let mut parts = split_params(head).into_iter();
@@ -570,6 +571,15 @@ mod tests {
         let p = parse_line(lines[0].0, &lines[0].1).unwrap();
         assert_eq!(p.value, "Müller;Jürgen;;;");
         assert!(p.param("ENCODING").is_none());
+    }
+
+    #[test]
+    fn soft_break_after_a_quoted_colon_in_the_params() {
+        let t = "ADR;LABEL=\"Flat 2: rear\";ENCODING=QUOTED-PRINTABLE:;;1 Main=\n St;;;;\nTEL:1\n";
+        let lines = unfold(t);
+        assert_eq!(lines.len(), 2);
+        let p = parse_line(lines[0].0, &lines[0].1).unwrap();
+        assert_eq!(p.value, ";;1 Main St;;;;");
     }
 
     #[test]
