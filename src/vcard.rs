@@ -315,6 +315,26 @@ pub fn read(text: &str, file: &str) -> (Vec<Contact>, Vec<Issue>) {
     (contacts, issues)
 }
 
+/// 4.0 writes numbers as `tel:+1-555-0100;ext=12` URIs. The scheme is
+/// case-insensitive, and URI parameters aren't part of the number: left in,
+/// an extension's digits ran on into it and it matched nothing.
+fn tel_uri(v: &str) -> String {
+    let t = v.trim();
+    let Some(rest) = t
+        .get(..4)
+        .filter(|s| s.eq_ignore_ascii_case("tel:"))
+        .map(|_| &t[4..])
+    else {
+        return t.to_string();
+    };
+    let mut parts = rest.split(';');
+    let number = parts.next().unwrap_or("").trim().to_string();
+    match parts.find_map(|p| p.trim().strip_prefix("ext=")) {
+        Some(ext) if !ext.is_empty() => format!("{number} ext. {ext}"),
+        _ => number,
+    }
+}
+
 fn clip(s: &str) -> String {
     match s.char_indices().nth(40) {
         Some((i, _)) => format!("{}...", &s[..i]),
@@ -375,8 +395,7 @@ fn build(mut c: Contact, props: Vec<Prop>, issues: &mut Vec<Issue>, file: &str) 
             "TITLE" => c.title = unescape(&p.value).trim().to_string(),
             "TEL" => {
                 let v = unescape(&p.value);
-                // 4.0 writes numbers as `tel:+1-...` URIs.
-                let v = v.strip_prefix("tel:").unwrap_or(&v).trim().to_string();
+                let v = tel_uri(&v);
                 if !v.is_empty() {
                     c.phones.push(field(&p, v));
                     slot("TEL", c.phones.len());
@@ -654,6 +673,15 @@ mod tests {
             split_unescape(r"Friends,Work\,Old", ','),
             ["Friends", "Work,Old"]
         );
+    }
+
+    #[test]
+    fn tel_uris() {
+        assert_eq!(tel_uri("tel:+1-555-0100"), "+1-555-0100");
+        assert_eq!(tel_uri("TEL:+1-555-0100"), "+1-555-0100");
+        assert_eq!(tel_uri("tel:+1-555-0100;ext=12"), "+1-555-0100 ext. 12");
+        assert_eq!(tel_uri("tel:+1-555-0100;phone-context=x"), "+1-555-0100");
+        assert_eq!(tel_uri(" 022 2345 6789 "), "022 2345 6789");
     }
 
     #[test]
