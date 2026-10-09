@@ -109,7 +109,11 @@ pub fn write(c: &Contact) -> String {
         for (k, v) in &e.params {
             head.push_str(&format!(";{k}={}", param_value(v)));
         }
-        w.line(&format!("{head}:{}", e.value));
+        // Kept as read, except that a quoted-printable value from a 2.1
+        // card can hold real line breaks, which would end the line early
+        // and turn the rest into a property of its own.
+        let value = e.value.replace("\r\n", "\\n").replace(['\r', '\n'], "\\n");
+        w.line(&format!("{head}:{value}"));
     }
     w.line("END:VCARD");
     w.out
@@ -213,6 +217,16 @@ mod tests {
         }
         let unfolded = out.replace("\r\n ", "");
         assert!(unfolded.contains(&format!("FN:{}", "Zoë".repeat(40))));
+    }
+
+    #[test]
+    fn line_breaks_in_an_extra_stay_on_one_line() {
+        let (cs, _) = crate::vcard::read(
+            "BEGIN:VCARD\nVERSION:2.1\nN:Rao;Asha\nX-NOTES;ENCODING=QUOTED-PRINTABLE:a=0D=0Ab\nEND:VCARD\n",
+            "t.vcf",
+        );
+        let out = write(&cs[0]);
+        assert!(out.contains("X-NOTES:a\\nb\r\n"), "{out}");
     }
 
     #[test]
