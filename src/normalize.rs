@@ -592,6 +592,10 @@ mod tests {
         );
         assert_eq!(phone("(415) 555-2671", Id::US).unwrap().key, "+14155552671");
         assert_eq!(
+            phone("+1-415-555-2671 ext. 12", Id::IN).unwrap().key,
+            "+14155552671"
+        );
+        assert_eq!(
             phone("+1 415 555 2671", Id::IN).unwrap().key,
             "+14155552671"
         );
